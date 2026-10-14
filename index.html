@@ -107,6 +107,13 @@
   .produtoras .rotulo{font-weight:800;font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:var(--mata);margin-bottom:10px}
   .produtoras img{display:block;width:100%;height:auto}
 
+  /* ---------- Aviso de espera ---------- */
+  .espera{padding:24px 18px 22px;text-align:center}
+  .espera-ico{width:54px;height:54px;padding:10px;margin-bottom:10px;border:var(--borda);border-radius:50%;background:var(--sol);color:var(--tinta);box-shadow:3px 3px 0 var(--tinta)}
+  .espera-titulo{font-size:2rem;line-height:1;color:var(--barro);margin-bottom:10px}
+  .espera p{font-weight:600;line-height:1.45;color:#33503f;margin-top:6px}
+  .espera strong{color:var(--tinta);font-weight:800}
+
   /* ---------- Botão Garanta seu ingresso ---------- */
   .btn-ingresso{position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;text-align:left;text-decoration:none;color:var(--tinta);padding:18px 76px 18px 16px;border:var(--borda);border-radius:22px;background:var(--sol);box-shadow:6px 6px 0 var(--tinta);touch-action:manipulation;transition:transform .1s,box-shadow .1s}
   .btn-ingresso:active{transform:translate(4px,4px);box-shadow:2px 2px 0 var(--tinta)}
@@ -234,6 +241,14 @@
       <p class="legal">Seus dados são usados apenas para comunicações sobre este evento.</p>
     </div>
 
+    <!-- ENTRE O FIM DO CADASTRO E A ABERTURA: só o aviso de espera -->
+    <div id="fase-espera" class="cartao espera" hidden>
+      <svg class="espera-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6M12 2v3"/></svg>
+      <div class="titulo espera-titulo">Cadastros encerrados</div>
+      <p>Aguarde! As vendas abrem <strong>hoje às 12h</strong>, aqui mesmo nesta página.</p>
+      <p>Fique por perto: quando o relógio zerar, aparece o botão para garantir o seu ingresso.</p>
+    </div>
+
     <!-- FASE 2: venda (só aparece depois da abertura E com o link da ticketeria preenchido) -->
     <div id="fase-venda" hidden>
       <a class="btn-ingresso js-ingresso" href="#" rel="noopener">
@@ -281,8 +296,11 @@ const CONFIG = {
   // Abertura das vendas, no horário de Brasília (ano, mês, dia, hora, minuto)
   abertura: { ano: 2026, mes: 10, dia: 14, hora: 12, minuto: 0 },
 
+  // Encerramento do cadastro, no horário de Brasília. Daqui até a abertura a página mostra só o aviso de espera.
+  fimCadastro: { ano: 2026, mes: 10, dia: 14, hora: 10, minuto: 0 },
+
   // Link da ticketeria. Enquanto estiver vazio, o botão "Garanta seu ingresso" NÃO aparece.
-  ticketUrl: '',
+  ticketUrl: 'https://www.sympla.com.br/evento/joAo-gomes-em-itaunases/3609225',
 
   // ID do Pixel da Meta (só números). Enquanto estiver vazio, o pixel fica desligado.
   pixelId: '1823836675633837',
@@ -318,6 +336,8 @@ const temLink = /^https?:\/\//i.test(CONFIG.ticketUrl);
 // ---------- Relógio: Brasília é UTC-3 o ano todo ----------
 const A = CONFIG.abertura;
 const ABERTURA = Date.UTC(A.ano, A.mes - 1, A.dia, A.hora + 3, A.minuto, 0);
+const F = CONFIG.fimCadastro;
+const FIM_CADASTRO = Date.UTC(F.ano, F.mes - 1, F.dia, F.hora + 3, F.minuto, 0);
 let ajuste = 0;                       // diferença entre o relógio do servidor e o do aparelho
 const agora = () => Date.now() + ajuste;
 // Sincroniza com o relógio do servidor (cabeçalho Date), para não depender do celular de quem acessa
@@ -329,12 +349,26 @@ const dd = (n) => String(n).padStart(2, '0');
 $('crono-quando').textContent = dd(A.dia) + '/' + dd(A.mes) + ' às ' + A.hora + 'h' + (A.minuto ? dd(A.minuto) : '') + ' (horário de Brasília)';
 
 // ---------- Fase de venda ----------
+// ---------- Fim do cadastro: some o formulário e entra o aviso de espera ----------
+let cadastroEncerrado = false;
+function encerrarCadastro() {
+  if (cadastroEncerrado || vendaAtiva) return; cadastroEncerrado = true;
+  $('fase-cadastro').hidden = true;
+  $('fase-espera').hidden = false;
+  $('subtitulo').innerHTML = '+ convidado especial<br><strong>Vendas abrem hoje às 12h</strong>';
+  ctaLink.hidden = true;                       // no rodapé fica só a contagem
+  cta.classList.remove('oculto');
+  observar($('crono'));
+}
+
 let vendaAtiva = false;
 function abrirVenda() {
   if (vendaAtiva) return; vendaAtiva = true;
   $('crono').hidden = true;
   $('fase-cadastro').hidden = true;
+  $('fase-espera').hidden = true;
   $('fase-venda').hidden = false;
+  ctaLink.hidden = false;
   $('subtitulo').innerHTML = '+ convidado especial<br><strong>Ingressos à venda</strong>';
   mini.hidden = true;
   ctaLink.textContent = 'Garanta seu ingresso';
@@ -360,6 +394,7 @@ function tick() {
   const h = Math.floor(falta / 3600);  falta -= h * 3600;
   const m = Math.floor(falta / 60);    const s = falta - m * 60;
   $('c-d').textContent = dd(d); $('c-h').textContent = dd(h); $('c-m').textContent = dd(m); $('c-s').textContent = dd(s);
+  if (ms > 0 && agora() >= FIM_CADASTRO) encerrarCadastro();
   if (ms <= 0) {
     clearInterval(timer);
     if (temLink) { abrirVenda(); return; }
@@ -375,7 +410,7 @@ timer = setInterval(tick, 1000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
 
 // ---------- Rodapé fixo: some quando o alvo aparece na tela ----------
-let obs;
+var obs;
 function observar(alvo) {
   if (!('IntersectionObserver' in window)) return;
   if (obs) obs.disconnect();
